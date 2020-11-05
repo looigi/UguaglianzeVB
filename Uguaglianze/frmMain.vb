@@ -102,7 +102,7 @@ Public Class frmMain
         End If
         rec.Close()
 
-        sql = "Select Count(*) From Dati"
+        sql = "Select Count(*) From Dati Where Valida='S' Or Valida=''"
         rec = db.LeggeQuery(conn, sql)
         If rec(0).Value Is DBNull.Value = True Then
             lblTotImmagini.Text = "0"
@@ -240,7 +240,7 @@ Public Class frmMain
         Dim gi As New GestioneImmagini
         Dim gf As New GestioneFilesDirectory
         Dim QuantiFiles As Long
-        Dim sQuantiFiles As String
+        Dim sQuantiFiles As String = ""
 
         lblTipoOperazione.Text = ""
         Application.DoEvents()
@@ -251,7 +251,7 @@ Public Class frmMain
         Dim sql As String
         Dim rec As Object = "ADODB.Recordset"
 
-        Dim Immagini() As String
+        Dim Immagini() As String = {}
 
         If chkLeggeImmagini.Checked = True Then
             gf.ScansionaDirectorySingola(lblDirectory.Text, "", lblAvanzamento) '
@@ -371,7 +371,7 @@ Public Class frmMain
                         End If
                         rec.Close()
 
-                        sql = "Select * From Dati Where idCartella=" & idCartella & " And NomeFile='" & Nome.Replace("'", "''") & "'"
+                        sql = "Select * From Dati Where idCartella=" & idCartella & " And NomeFile='" & Nome.Replace("'", "''") & "' And (Valida='S' Or Valida='')"
                         rec = db.LeggeQuery(conn, sql)
                         Scrivi = False
                         If rec.Eof = True Then
@@ -426,7 +426,8 @@ Public Class frmMain
                                 " " & dime(0) & ", " &
                                 " " & dime(1) & ", " &
                                 "'N', " &
-                                "'N' " &
+                                "'N', " &
+                                "'' " &
                                 ")"
                         End If
                         rec.Close()
@@ -760,9 +761,9 @@ Public Class frmMain
         End If
         rec.Close()
 
-        Sql = "Select Count(*) From Dati A " & _
-            "Left Join Cartelle B On A.idCartella=B.idCartella " & _
-            "Where (LettoExif='N' Or LettoExif='' Or LettoExif Is Null) And Descrizione Not Like '%picDROP%'"
+        Sql = "Select Count(*) From Dati A " &
+            "Left Join Cartelle B On A.idCartella=B.idCartella " &
+            "Where (LettoExif='N' Or LettoExif='' Or LettoExif Is Null) And Descrizione Not Like '%picDROP%' And (Valida='S' Or Valida='')"
         rec = Db.LeggeQuery(Conn, Sql)
         If rec(0).Value Is DBNull.Value = True Then
             Tot = 0
@@ -775,9 +776,9 @@ Public Class frmMain
         lblTipoOperazione.Text = "Lettura EXIF"
         Application.DoEvents()
 
-        Sql = "Select A.id, A.NomeFile, B.Descrizione, A.LettoEXIF From Dati A " & _
-            "Left Join Cartelle B On A.idCartella=B.idCartella " & _
-            "Where (LettoExif='N' Or LettoExif='' Or LettoExif Is Null) And Descrizione Not Like '%picDROP%'"
+        Sql = "Select A.id, A.NomeFile, B.Descrizione, A.LettoEXIF From Dati A " &
+            "Left Join Cartelle B On A.idCartella=B.idCartella " &
+            "Where (LettoExif='N' Or LettoExif='' Or LettoExif Is Null) And Descrizione Not Like '%picDROP%' And (Valida='S' Or Valida='')"
         rec2 = Db.LeggeQuery(Conn, Sql)
         Do Until rec2.Eof
             Quale += 1
@@ -1052,7 +1053,7 @@ Public Class frmMain
         Dim dimeFilesOriginali As Single
         Dim dimeFilesRidimensionati As Single
 
-        Sql = "Select Count(*) From Dati Where DimeX>1700 Or DimeY>1300"
+        Sql = "Select Count(*) From Dati Where (DimeX>1700 Or DimeY>1300) And (Valida='S' Or Valida='')"
         rec = Db.LeggeQuery(Conn, Sql)
         If rec(0).Value Is DBNull.Value = True Then
             Tot = 0
@@ -1065,9 +1066,9 @@ Public Class frmMain
         lblTipoOperazione.Text = "Ridimensionamento"
         Application.DoEvents()
 
-        Sql = "Select A.id, A.NomeFile, B.Descrizione, A.NomeSistemato, A.DimeX, A.DimeY, A.Dimensione From Dati A " & _
-            "Left Join Cartelle B On A.idCartella=B.idCartella " & _
-            "Where DimeX>1700 Or DimeY>1300"
+        Sql = "Select A.id, A.NomeFile, B.Descrizione, A.NomeSistemato, A.DimeX, A.DimeY, A.Dimensione From Dati A " &
+            "Left Join Cartelle B On A.idCartella=B.idCartella " &
+            "Where (DimeX>1700 Or DimeY>1300) And (Valida='S' Or Valida='')"
         rec = Db.LeggeQuery(Conn, Sql)
         Do Until rec.Eof
             Quale += 1
@@ -1133,7 +1134,7 @@ Public Class frmMain
     Private Sub EliminaInesistenti(Db As GestioneDB, Conn As Object)
         Dim sql As String
         Dim rec As Object = "ADODB.Recordset"
-        Dim daEliminare() As Integer
+        Dim daEliminare() As Integer = {}
         Dim Quanti As Integer = 0
         Dim Tot As Long
         Dim sQuantiTot As String
@@ -1277,105 +1278,142 @@ Public Class frmMain
             rec.Close()
         End If
 
+        ' Controllo per dimensioni / data uguali
+        If chkPerDime.Checked = True And BloccaTuttoEdEsci = False Then
+            'Dim Dimensione1 As Long
+            'Dim DimeX1 As Integer
+            'Dim DimeY1 As Integer
+            'Dim Dimensione2 As Long
+            'Dim DimeX2 As Integer
+            'Dim DimeY2 As Integer
+
+            lblTipoOperazione.Text = "Controllo per Dimensioni/Data"
+
+            sql = "SELECT DISTINCT Cartelle.Descrizione+'\'+Dati.NomeFile AS File1, Cartelle_1.Descrizione+'\'+Dati_1.NomeFile AS File2, Dati.Dimensione, Dati.DataOra, Dati.DimeX, Dati.DimeY, Dati.id As id1, Dati_1.id As id2 " &
+                "FROM ((Dati INNER JOIN Dati AS Dati_1 ON (Dati.Dimensione = Dati_1.Dimensione) AND (Dati.DimeX = Dati_1.DimeX) AND (Dati.DimeY = Dati_1.DimeY) AND (Dati.DataOra = Dati_1.DataOra)) INNER JOIN Cartelle ON Dati.idCartella = Cartelle.idCartella) INNER JOIN Cartelle AS Cartelle_1 ON Dati_1.idCartella = Cartelle_1.idCartella " &
+                "WHERE (((Dati.idCartella)<>[Dati_1].[idCartella])) And (Dati.Valida='S' Or Dati.Valida='') And ([Dati_1].Valida='S' Or [Dati_1].Valida='')"
+            rec = Db.LeggeQuery(Conn, sql)
+            Quale = 0
+            Do Until rec.Eof
+                Quale += 1
+                If Quale / 10 = Int(Quale / 10) Then
+                    lblAvanzamento.Text = "Immagine " & FormattaNumero(Quale, False) & "/" & sQuantiTot & " - Rilevate: " & FormattaNumero(QuantiUguali, False)
+                    Application.DoEvents()
+                End If
+
+                If BloccaTuttoEdEsci = True Then
+                    Exit Do
+                End If
+
+                idPrimo = rec("id1").Value
+                idSecondo = rec("id2").Value
+
+                QuantiUguali += InserisceInTabellaUguali(Db, Conn, idPrimo, idSecondo, nonUguali, "PerDime")
+
+                rec.MoveNext()
+            Loop
+            rec.Close()
+        End If
+
         ' Controllo per dimensioni
-        If chkPerDime.Checked = True And BloccaTuttoEdEsci = False Then
-            Dim Dimensione1 As Long
-            Dim DimeX1 As Integer
-            Dim DimeY1 As Integer
-            Dim Dimensione2 As Long
-            Dim DimeX2 As Integer
-            Dim DimeY2 As Integer
+        'If chkPerDime.Checked = True And BloccaTuttoEdEsci = False Then
+        '    Dim Dimensione1 As Long
+        '    Dim DimeX1 As Integer
+        '    Dim DimeY1 As Integer
+        '    Dim Dimensione2 As Long
+        '    Dim DimeX2 As Integer
+        '    Dim DimeY2 As Integer
 
-            lblTipoOperazione.Text = "Controllo per Dimensioni"
+        '    lblTipoOperazione.Text = "Controllo per Dimensioni"
 
-            sql = "Select * From Dati Order By Dimensione, DimeX, DimeY"
-            rec = Db.LeggeQuery(Conn, sql)
-            If rec.Eof = False Then
-                Dimensione1 = rec("Dimensione").Value
-                DimeX1 = rec("DimeX").Value
-                DimeY1 = rec("DimeY").Value
-                idPrimo = rec("id").Value
+        '    sql = "Select * From Dati Order By Dimensione, DimeX, DimeY"
+        '    rec = Db.LeggeQuery(Conn, sql)
+        '    If rec.Eof = False Then
+        '        Dimensione1 = rec("Dimensione").Value
+        '        DimeX1 = rec("DimeX").Value
+        '        DimeY1 = rec("DimeY").Value
+        '        idPrimo = rec("id").Value
 
-                rec.MoveNext()
-            End If
-            Quale = 0
-            Do Until rec.Eof
-                Quale += 1
-                If Quale / 10 = Int(Quale / 10) Then
-                    lblAvanzamento.Text = "Immagine " & FormattaNumero(Quale, False) & "/" & sQuantiTot & " - Rilevate: " & FormattaNumero(QuantiUguali, False)
-                    Application.DoEvents()
-                End If
+        '        rec.MoveNext()
+        '    End If
+        '    Quale = 0
+        '    Do Until rec.Eof
+        '        Quale += 1
+        '        If Quale / 10 = Int(Quale / 10) Then
+        '            lblAvanzamento.Text = "Immagine " & FormattaNumero(Quale, False) & "/" & sQuantiTot & " - Rilevate: " & FormattaNumero(QuantiUguali, False)
+        '            Application.DoEvents()
+        '        End If
 
-                If BloccaTuttoEdEsci = True Then
-                    Exit Do
-                End If
+        '        If BloccaTuttoEdEsci = True Then
+        '            Exit Do
+        '        End If
 
-                Dimensione2 = rec("Dimensione").Value
-                DimeX2 = rec("DimeX").Value
-                DimeY2 = rec("DimeY").Value
-                idSecondo = rec("id").Value
+        '        Dimensione2 = rec("Dimensione").Value
+        '        DimeX2 = rec("DimeX").Value
+        '        DimeY2 = rec("DimeY").Value
+        '        idSecondo = rec("id").Value
 
-                If Dimensione1 = Dimensione2 And DimeX1 = DimeX2 And DimeY1 = DimeY2 Then
-                    QuantiUguali += InserisceInTabellaUguali(Db, Conn, idPrimo, idSecondo, nonUguali, "PerDime")
-                End If
+        '        If Dimensione1 = Dimensione2 And DimeX1 = DimeX2 And DimeY1 = DimeY2 Then
+        '            QuantiUguali += InserisceInTabellaUguali(Db, Conn, idPrimo, idSecondo, nonUguali, "PerDime")
+        '        End If
 
-                Dimensione1 = Dimensione2
-                DimeX1 = DimeX2
-                DimeY1 = DimeY2
-                idPrimo = idSecondo
+        '        Dimensione1 = Dimensione2
+        '        DimeX1 = DimeX2
+        '        DimeY1 = DimeY2
+        '        idPrimo = idSecondo
 
-                rec.MoveNext()
-            Loop
-            rec.Close()
-        End If
+        '        rec.MoveNext()
+        '    Loop
+        '    rec.Close()
+        'End If
 
-        ' Controllo per data
-        If chkPerDime.Checked = True And BloccaTuttoEdEsci = False Then
-            Dim DataOra1 As String
-            Dim DataOra2 As String
-            Dim Dimensione1 As Long
-            Dim Dimensione2 As Long
+        '' Controllo per data
+        'If chkPerDime.Checked = True And BloccaTuttoEdEsci = False Then
+        '    Dim DataOra1 As String
+        '    Dim DataOra2 As String
+        '    Dim Dimensione1 As Long
+        '    Dim Dimensione2 As Long
 
-            lblTipoOperazione.Text = "Controllo per Data"
-            Application.DoEvents()
+        '    lblTipoOperazione.Text = "Controllo per Data"
+        '    Application.DoEvents()
 
-            sql = "Select * From Dati Order By DataOra"
-            rec = Db.LeggeQuery(Conn, sql)
-            If rec.Eof = False Then
-                DataOra1 = rec("DataOra").Value
-                Dimensione1 = rec("Dimensione").Value
-                idPrimo = rec("id").Value
+        '    sql = "Select * From Dati Order By DataOra"
+        '    rec = Db.LeggeQuery(Conn, sql)
+        '    If rec.Eof = False Then
+        '        DataOra1 = rec("DataOra").Value
+        '        Dimensione1 = rec("Dimensione").Value
+        '        idPrimo = rec("id").Value
 
-                rec.MoveNext()
-            End If
-            Quale = 0
-            Do Until rec.Eof
-                Quale += 1
-                If Quale / 10 = Int(Quale / 10) Then
-                    lblAvanzamento.Text = "Immagine " & FormattaNumero(Quale, False) & "/" & sQuantiTot & " - Rilevate: " & FormattaNumero(QuantiUguali, False)
-                    Application.DoEvents()
-                End If
+        '        rec.MoveNext()
+        '    End If
+        '    Quale = 0
+        '    Do Until rec.Eof
+        '        Quale += 1
+        '        If Quale / 10 = Int(Quale / 10) Then
+        '            lblAvanzamento.Text = "Immagine " & FormattaNumero(Quale, False) & "/" & sQuantiTot & " - Rilevate: " & FormattaNumero(QuantiUguali, False)
+        '            Application.DoEvents()
+        '        End If
 
-                If BloccaTuttoEdEsci = True Then
-                    Exit Do
-                End If
+        '        If BloccaTuttoEdEsci = True Then
+        '            Exit Do
+        '        End If
 
-                DataOra2 = rec("DataOra").Value
-                Dimensione2 = rec("Dimensione").Value
-                idSecondo = rec("id").Value
+        '        DataOra2 = rec("DataOra").Value
+        '        Dimensione2 = rec("Dimensione").Value
+        '        idSecondo = rec("id").Value
 
-                If DataOra1 = DataOra2 And Dimensione1 = Dimensione2 Then
-                    QuantiUguali += InserisceInTabellaUguali(Db, Conn, idPrimo, idSecondo, nonUguali, "PerData")
-                End If
+        '        If DataOra1 = DataOra2 And Dimensione1 = Dimensione2 Then
+        '            QuantiUguali += InserisceInTabellaUguali(Db, Conn, idPrimo, idSecondo, nonUguali, "PerData")
+        '        End If
 
-                DataOra1 = DataOra2
-                Dimensione1 = Dimensione2
-                idPrimo = idSecondo
+        '        DataOra1 = DataOra2
+        '        Dimensione1 = Dimensione2
+        '        idPrimo = idSecondo
 
-                rec.MoveNext()
-            Loop
-            rec.Close()
-        End If
+        '        rec.MoveNext()
+        '    Loop
+        '    rec.Close()
+        'End If
 
         ' Controllo per lunghezza 0
         If chkPerZero.Checked = True And BloccaTuttoEdEsci = False Then
@@ -1385,9 +1423,9 @@ Public Class frmMain
             lblTipoOperazione.Text = "Controllo per lunghezza 0"
             Application.DoEvents()
 
-            sql = "Select A.*, B.Descrizione As Cartella From Dati A " & _
-                 "Left Join Cartelle B On A.idCartella=B.idCartella " & _
-                 "Where Dimensione=0"
+            sql = "Select A.*, B.Descrizione As Cartella From Dati A " &
+                 "Left Join Cartelle B On A.idCartella=B.idCartella " &
+                 "Where Dimensione=0 And (Valida='S' Or Valida='')"
             rec = Db.LeggeQuery(Conn, sql)
             Do Until rec.Eof
                 If BloccaTuttoEdEsci = True Then
@@ -1426,10 +1464,10 @@ Public Class frmMain
             Dim gf As New GestioneFilesDirectory
             Dim rec3 As Object = CreateObject("ADODB.Recordset")
             Dim idCartellaNuova As Integer
-            Dim Dime As Long
-            Dim dx As Integer
-            Dim dy As Integer
-            Dim Ok As Boolean
+            Dim Dime As Long = -1
+            Dim dx As Integer = -1
+            Dim dy As Integer = -1
+            Dim Ok As Boolean = False
             Dim Quante As Long = 0
 
             Try
@@ -1444,12 +1482,12 @@ Public Class frmMain
             Dim totale As Long = 0
 
             ' Dimensione<" & DimensioneMinimaBytes & " " & _
-            sql = "Select A.*, B.Descrizione As Cartella From Dati A " & _
-                "Left Join Cartelle B On A.idCartella=B.idCartella " & _
-                "Where " & _
-                "B.Descrizione Not Like '%\PICCOLE%' And (A.Dimensione<" & DimensioneMinimaBytes & " Or (" & _
-                "DimeX<" & DimensioneMinimaX & " And DimeY<" & DimensioneMinimaX & ") " & _
-                ")"
+            sql = "Select A.*, B.Descrizione As Cartella From Dati A " &
+                "Left Join Cartelle B On A.idCartella=B.idCartella " &
+                "Where " &
+                "B.Descrizione Not Like '%\PICCOLE%' And (A.Dimensione<" & DimensioneMinimaBytes & " Or (" &
+                "DimeX<" & DimensioneMinimaX & " And DimeY<" & DimensioneMinimaX & ") " &
+                ")  And (Valida='S' Or Valida='')"
             rec = Db.LeggeQuery(Conn, sql)
             Do Until rec.Eof
                 totale += 1
@@ -1547,8 +1585,9 @@ Public Class frmMain
             lblTipoOperazione.Text = "Controllo per non valide"
             Application.DoEvents()
 
-            sql = "Select A.*, B.Descrizione As Cartella From Dati A " & _
-                 "Left Join Cartelle B On A.idCartella=B.idCartella"
+            sql = "Select A.*, B.Descrizione As Cartella From Dati A " &
+                 "Left Join Cartelle B On A.idCartella=B.idCartella " &
+                 "Where Valida Is Null Or Valida = ''"
             rec = Db.LeggeQuery(Conn, sql)
             Quale = 0
             Do Until rec.Eof
@@ -2691,7 +2730,8 @@ Public Class frmMain
                                     " " & Dime(0) & ", " &
                                     " " & Dime(1) & ", " &
                                     "'N', " &
-                                    "'N' " &
+                                    "'N', " &
+                                    "'' " &
                                     ")"
                             End If
                             rec.Close()
